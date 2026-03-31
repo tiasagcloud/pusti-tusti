@@ -1,0 +1,18 @@
+Key Changes from Original System
+-------------------------------------------
+Verification Flow: Remove QR scan; start directly with face verification. If the real-time face matches the stored image, proceed to allocation.
+Meal Allocation: After successful face verification, provide a coordinator interface to allocate a meal (e.g., mark as allocated for the day).
+Food Item QR Codes: Each food item has a QR code. Scanning it displays nutritional benefits on screen.
+Allocation Tracking: Prevent double allocation; show if a meal is already allocated for the day.
+
+Current Codebase Gaps
+--------------------------------
+Your app.py has QR + face verification; needs refactoring to face-only.
+No meal allocation logic or tracking (e.g., database for daily allocations).
+No food QR scanning or nutrition display.
+index.html is basic; needs updates for coordinator UI and food scanning.
+Suggested Implementation Steps
+Update Verification: Modify app.py to skip QR and go straight to face scan on page load.
+Add Meal Allocation: Introduce a database (e.g., SQLite) to track allocations per student per day. Add API routes for allocation and checks.
+Food QR Feature: Create a new page/route for food scanning, with nutrition data stored in a file/database.
+UI Enhancements: Update index.html with allocation buttons and food scan section.
