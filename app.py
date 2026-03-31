@@ -1,70 +1,79 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, jsonify, request
 import pandas as pd
-import cv2
-import numpy as np
-import base64
-from pyzbar.pyzbar import decode
-import face_recognition
+import sqlite3
+from datetime import datetime
 
 app = Flask(__name__)
 
-df = pd.read_excel("students.xlsx")
+# Load food data
+df = pd.read_excel("foods.xlsx")
 
-# Convert base64 to image
-def base64_to_image(base64_string):
-    img_data = base64.b64decode(base64_string.split(',')[1])
-    np_arr = np.frombuffer(img_data, np.uint8)
-    return cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+# DATABASE for daily logs
+conn = sqlite3.connect('nutrition.db', check_same_thread=False)
+cursor = conn.cursor()
 
-# STEP 1: QR Verification
-@app.route('/verify_qr', methods=['POST'])
-def verify_qr():
-    data = request.json['image']
-    img = base64_to_image(data)
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS daily_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    food_id INTEGER,
+    food_name TEXT,
+    calories REAL,
+    protein REAL,
+    carbs REAL,
+    fats REAL,
+    date TEXT
+)
+''')
 
-    decoded = decode(img)
-    for obj in decoded:
-        qr_data = obj.data.decode('utf-8')
-        student = df[df['qr_data'] == qr_data]
+# API: Get food details
+@app.route('/food/<int:food_id>')
+def get_food(food_id):
+    food = df[df['food_id'] == food_id].to_dict(orient='records')
+    
+    if food:
+        return jsonify(food[0])
+    return jsonify({"error": "Food not found"})
 
-        if not student.empty:
-            student = student.iloc[0]
-            return jsonify({
-                "status": "success",
-                "id": int(student['id']),
-                "name": student['name'],
-                "face_path": student['face_image']
-            })
+# API: Save scanned food
+@app.route('/log', methods=['POST'])
+def log_food():
+    data = request.json
+    
+    cursor.execute('''
+    INSERT INTO daily_log (food_id, food_name, calories, protein, carbs, fats, date)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        data['food_id'],
+        data['food_name'],
+        data['calories'],
+        data['protein'],
+        data['carbs'],
+        data['fats'],
+        datetime.now().strftime("%Y-%m-%d")
+    ))
+    
+    conn.commit()
+    
+    return {"message": "Saved successfully"}
 
-    return jsonify({"status": "fail"})
+# API: Daily summary
+@app.route('/daily-summary')
+def summary():
+    today = datetime.now().strftime("%Y-%m-%d")
+    
+    cursor.execute('''
+    SELECT SUM(calories), SUM(protein), SUM(carbs), SUM(fats)
+    FROM daily_log WHERE date=?
+    ''', (today,))
+    
+    result = cursor.fetchone()
+    
+    return jsonify({
+        "calories": result[0] or 0,
+        "protein": result[1] or 0,
+        "carbs": result[2] or 0,
+        "fats": result[3] or 0
+    })
 
-# STEP 2: Face Verification
-@app.route('/verify_face', methods=['POST'])
-def verify_face():
-    data = request.json['image']
-    student_id = request.json['id']
-
-    input_img = base64_to_image(data)
-
-    student = df[df['id'] == int(student_id)].iloc[0]
-    stored_img = face_recognition.load_image_file("static/" + student['face_image'])
-
-    input_enc = face_recognition.face_encodings(input_img)
-    stored_enc = face_recognition.face_encodings(stored_img)
-
-    if len(input_enc) == 0 or len(stored_enc) == 0:
-        return jsonify({"status": "no_face"})
-
-    match = face_recognition.compare_faces([stored_enc[0]], input_enc[0])
-
-    if match[0]:
-        return jsonify({"status": "verified"})
-    else:
-        return jsonify({"status": "not_verified"})
-
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
