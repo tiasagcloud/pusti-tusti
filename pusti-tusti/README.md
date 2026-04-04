@@ -1,0 +1,1 @@
+to generate qr codes for each student and store them in a XL sheet along with their other information . then i have to prepare a website for students entry . in first step verification it will scan the qr code and then in second step verification it will scan the students face . the face information and qr are stored in a XL sheet named students.xlsx.

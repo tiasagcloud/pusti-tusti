@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>2-Step Verification</title>
+</head>
+<body>
+
+<h2>Live QR Scan</h2>
+<video id="video" width="400" autoplay></video>
+<br>
+<button onclick="scanQR()">Scan QR</button>
+<h3 id="qrResult"></h3>
+
+<div id="faceSection" style="display:none;">
+    <h2>Face Verification</h2>
+    <button onclick="scanFace()">Verify Face</button>
+    <h3 id="faceResult"></h3>
+</div>
+
+<canvas id="canvas" style="display:none;"></canvas>
+
+<script>
+let studentId = null;
+
+const video = document.getElementById('video');
+
+// Access webcam
+navigator.mediaDevices.getUserMedia({ video: true })
+.then(stream => {
+    video.srcObject = stream;
+});
+
+// Capture frame
+function captureImage() {
+    let canvas = document.getElementById('canvas');
+    let context = canvas.getContext('2d');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    context.drawImage(video, 0, 0);
+    return canvas.toDataURL('image/png');
+}
+
+// STEP 1 QR
+function scanQR() {
+    let image = captureImage();
+
+    fetch('/verify_qr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: image })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === "success") {
+            document.getElementById("qrResult").innerText = "QR Verified: " + data.name;
+            studentId = data.id;
+            document.getElementById("faceSection").style.display = "block";
+        } else {
+            document.getElementById("qrResult").innerText = "QR Failed ❌";
+        }
+    });
+}
+
+// STEP 2 FACE
+function scanFace() {
+    let image = captureImage();
+
+    fetch('/verify_face', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: image, id: studentId })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === "verified") {
+            document.getElementById("faceResult").innerText = "Face Verified ✅";
+        } else {
+            document.getElementById("faceResult").innerText = "Face Not Matched ❌";
+        }
+    });
+}
+</script>
+
+</body>
+</html>
